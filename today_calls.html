@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Today's Calls</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .container {
+            max-width: 1000px;
+        }
+        .card {
+            border: none;
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        }
+        .card-header {
+            background-color: #007bff;
+            color: white;
+        }
+        .table th {
+            background-color: #f8f9fa;
+        }
+        .status-badge {
+            padding: 0.25em 0.6em;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            border-radius: 0.25rem;
+        }
+        .status-interested { background-color: #28a745; color: white; }
+        .status-not-interested { background-color: #dc3545; color: white; }
+        .status-unanswered { background-color: #ffc107; color: black; }
+        .status-callback { background-color: #17a2b8; color: white; }
+    </style>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h2 class="mb-0">
+                    <i class="fas fa-phone-alt me-2"></i>Today's Calls
+                </h2>
+                <span id="todayDate" class="text-light"></span>
+            </div>
+            <div class="card-body">
+                <div id="callsSummary" class="mb-4">
+                    <!-- Call summary will be inserted here -->
+                </div>
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Contact</th>
+                            <th>Status</th>
+                            <th>Duration</th>
+                            <th>Date</th>
+                            <th>Time</th>
+                        </tr>
+                    </thead>
+                    <tbody id="todayCallsBody">
+                        <!-- Today's calls will be inserted here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyADbdw5KtrmjQT_5EBJ6kNzExx8kkTEkuc",
+            authDomain: "realestate-694f3.firebaseapp.com",
+            databaseURL: "https://realestate-694f3-default-rtdb.firebaseio.com",
+            projectId: "realestate-694f3",
+            storageBucket: "realestate-694f3.appspot.com",
+            messagingSenderId: "966861149434",
+            appId: "1:966861149434:web:8a57876a91c80bcf216543",
+            measurementId: "G-J68SDN99DV"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const todayDate = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            document.getElementById('todayDate').textContent = todayDate;
+
+            // Fetch calls from Firebase
+            database.ref('calls').orderByChild('timestamp').on('value', (snapshot) => {
+                const allCalls = snapshot.val() ? Object.values(snapshot.val()) : [];
+                
+                // Filter calls for today
+                const today = new Date().toLocaleDateString();
+                const todayCalls = allCalls.filter(call => {
+                    const callDate = new Date(call.dateTime.split(' ')[0].split('/').reverse().join('-')).toLocaleDateString();
+                    return callDate === today;
+                });
+
+                // Sort today's calls by timestamp in descending order
+                todayCalls.sort((a, b) => b.timestamp - a.timestamp);
+
+                console.log('Today\'s calls:', todayCalls); // Debug log
+
+                // Update calls summary
+                updateCallsSummary(todayCalls);
+
+                // Populate calls table
+                populateCallsTable(todayCalls);
+            });
+        });
+
+        function updateCallsSummary(calls) {
+            const summaryHTML = `
+                <div class="row text-center">
+                    <div class="col-md-3 col-sm-6">
+                        <h4 class="text-primary">${calls.length}</h4>
+                        <p>Total Calls</p>
+                    </div>
+                    <div class="col-md-3 col-sm-6">
+                        <h4 class="text-success">${calls.filter(call => call.status === 'Interested').length}</h4>
+                        <p>Interested</p>
+                    </div>
+                    <div class="col-md-2 col-sm-6">
+                        <h4 class="text-danger">${calls.filter(call => call.status === 'Not Interested').length}</h4>
+                        <p>Not Interested</p>
+                    </div>
+                    <div class="col-md-2 col-sm-6">
+                        <h4 class="text-warning">${calls.filter(call => call.status === 'Unanswered').length}</h4>
+                        <p>Unanswered</p>
+                    </div>
+                    <div class="col-md-2 col-sm-6">
+                        <h4 class="text-info">${calls.filter(call => call.status === 'Callback').length}</h4>
+                        <p>Callback</p>
+                    </div>
+                </div>
+            `;
+            document.getElementById('callsSummary').innerHTML = summaryHTML;
+        }
+
+        function populateCallsTable(calls) {
+            const todayCallsBody = document.getElementById('todayCallsBody');
+            todayCallsBody.innerHTML = '';
+            calls.forEach(call => {
+                const row = document.createElement('tr');
+                const [date, time] = call.dateTime.split(' ');
+                row.innerHTML = `
+                    <td>${call.number || 'N/A'}</td>
+                    <td><span class="status-badge status-${call.status.toLowerCase().replace(' ', '-')}">${call.status || 'N/A'}</span></td>
+                    <td>${call.duration || 'N/A'}</td>
+                    <td>${date || 'N/A'}</td>
+                    <td>${formatTime(time) || 'N/A'}</td>
+                `;
+                todayCallsBody.appendChild(row);
+            });
+
+            console.log('Populated table with calls:', calls); // Debug log
+        }
+
+        function formatTime(dateString) {
+            if (!dateString) return 'N/A';
+            const [hours, minutes] = dateString.split(':');
+            const hour = parseInt(hours);
+            const ampm = hour >= 12 ? 'PM' : 'AM';
+            const formattedHour = (hour % 12 || 12).toString();
+            return `${formattedHour}:${minutes.slice(0, 2)}${ampm}`;
+        }
+    </script>
+</body>
+</html>
